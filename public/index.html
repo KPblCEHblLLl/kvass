@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Khlebets - Recipe Iterations</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-left">
+        <span class="app-logo">🍞</span>
+        <div>
+          <h1>Khlebets</h1>
+          <p class="subtitle">Recipe Iterations & Baking Log</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="refresh-btn" class="btn btn-secondary" title="Reload from storage">
+          <span class="icon">🔄</span> Refresh
+        </button>
+        <button id="new-item-btn" class="btn btn-primary">
+          <span class="icon">➕</span> New Khlebets
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="list-section">
+        <div class="section-header">
+          <h2>Iterations <span id="item-count" class="badge">0</span></h2>
+          <div class="search-box">
+            <input type="text" id="search-input" placeholder="Filter iterations..." />
+          </div>
+        </div>
+
+        <div id="loading-state" class="state-container">
+          <div class="spinner"></div>
+          <p>Loading Khlebets iterations...</p>
+        </div>
+
+        <div id="empty-state" class="state-container hidden">
+          <span class="empty-icon">🌾</span>
+          <h3>No Khlebets items found</h3>
+          <p>Create your first recipe iteration to begin tracking.</p>
+          <button id="empty-create-btn" class="btn btn-primary">Create First Iteration</button>
+        </div>
+
+        <div id="error-state" class="state-container error-container hidden">
+          <span class="empty-icon">⚠️</span>
+          <h3>Unable to load iterations</h3>
+          <p id="error-message">Connection failed</p>
+          <button id="error-retry-btn" class="btn btn-secondary">Retry</button>
+        </div>
+
+        <ul id="khlebets-list" class="khlebets-list hidden">
+          <!-- Populated dynamically via app.js -->
+        </ul>
+      </section>
+
+      <section class="detail-section" id="detail-section">
+        <div id="detail-placeholder" class="detail-placeholder">
+          <span class="placeholder-icon">👈</span>
+          <h3>Select a Khlebets iteration</h3>
+          <p>Click any item on the left to inspect its formulation, seeds, and baking schedule.</p>
+        </div>
+
+        <div id="detail-content" class="detail-card hidden">
+          <div class="detail-header">
+            <div>
+              <span id="detail-iteration-badge" class="badge badge-lg">Iteration #1</span>
+              <h2 id="detail-label" class="detail-title"># 1: Rye2000 — 300:250:0</h2>
+            </div>
+            <button id="close-detail-btn" class="btn-icon" title="Close details">✕</button>
+          </div>
+
+          <div class="detail-body">
+            <div class="info-grid">
+              <div class="info-card">
+                <span class="info-label">Flour</span>
+                <span class="info-value" id="detail-flower">-</span>
+                <span class="info-sub" id="detail-flower-type">Rye2000</span>
+              </div>
+              <div class="info-card">
+                <span class="info-label">Water</span>
+                <span class="info-value" id="detail-water">-</span>
+                <span class="info-sub">Hydration ratio</span>
+              </div>
+              <div class="info-card">
+                <span class="info-label">Sugar</span>
+                <span class="info-value" id="detail-sugar">0 g</span>
+                <span class="info-sub">Optional</span>
+              </div>
+              <div class="info-card">
+                <span class="info-label">Oven & Per Bake</span>
+                <span class="info-value" id="detail-oven-bake">-</span>
+                <span class="info-sub">Config</span>
+              </div>
+            </div>
+
+            <div class="seeds-card" id="seeds-card">
+              <h3>Seeds & Snack Profile</h3>
+              <div class="seeds-status" id="detail-snack-status"></div>
+              <div class="seeds-grid" id="seeds-grid">
+                <div class="seed-item"><span class="seed-name">Sesame:</span> <strong id="seed-sesame">0 g</strong></div>
+                <div class="seed-item"><span class="seed-name">Sunflower:</span> <strong id="seed-sunflower">0 g</strong></div>
+                <div class="seed-item"><span class="seed-name">Flax:</span> <strong id="seed-flax">0 g</strong></div>
+              </div>
+            </div>
+
+            <div class="baking-schedule-card">
+              <h3>Baking Schedule</h3>
+              <div class="table-container">
+                <table class="baking-table">
+                  <thead>
+                    <tr>
+                      <th>Step</th>
+                      <th>Temperature</th>
+                      <th>Duration</th>
+                      <th>Fan</th>
+                    </tr>
+                  </thead>
+                  <tbody id="baking-steps-body">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="raw-json-container">
+              <details>
+                <summary>Raw JSON Payload</summary>
+                <pre id="raw-json-preview"></pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal for New Khlebets Iteration -->
+    <div id="modal-backdrop" class="modal-backdrop hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>New Khlebets Iteration</h2>
+          <button id="modal-close-btn" class="btn-icon">✕</button>
+        </div>
+        <form id="new-khlebets-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="form-iteration">Iteration #</label>
+              <input type="number" id="form-iteration" required min="1" value="1" />
+            </div>
+            <div class="form-group">
+              <label for="form-oven">Oven</label>
+              <select id="form-oven" required>
+                <option value="Mine">Mine</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="form-per-bake">Per Bake (Qty)</label>
+              <input type="number" id="form-per-bake" required min="1" value="2" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="form-flower">Flour (g)</label>
+              <input type="number" id="form-flower" required min="1" value="300" />
+            </div>
+            <div class="form-group">
+              <label for="form-flower-type">Flour Type</label>
+              <select id="form-flower-type" required>
+                <option value="Rye2000">Rye2000</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="form-water">Water (g)</label>
+              <input type="number" id="form-water" required min="1" value="250" />
+            </div>
+            <div class="form-group">
+              <label for="form-sugar">Sugar (g, optional)</label>
+              <input type="number" id="form-sugar" min="0" placeholder="0" />
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="form-is-snack" />
+              <span>Is Snack (with seeds)</span>
+            </label>
+          </div>
+
+          <div class="form-row" id="form-seeds-row">
+            <div class="form-group">
+              <label for="form-sesame">Sesame (g)</label>
+              <input type="number" id="form-sesame" min="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="form-sunflower">Sunflower (g)</label>
+              <input type="number" id="form-sunflower" min="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="form-flax">Flax (g)</label>
+              <input type="number" id="form-flax" min="0" value="0" />
+            </div>
+          </div>
+
+          <div class="baking-form-section">
+            <label>Baking Step</label>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="form-bake-temp">Temp (°C)</label>
+                <input type="number" id="form-bake-temp" value="200" min="50" max="300" required />
+              </div>
+              <div class="form-group">
+                <label for="form-bake-dur">Duration (min)</label>
+                <input type="number" id="form-bake-dur" value="25" min="1" max="180" required />
+              </div>
+              <div class="form-group checkbox-group" style="margin-top: 24px;">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="form-bake-fan" />
+                  <span>Fan</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="modal-cancel-btn" class="btn btn-secondary">Cancel</button>
+            <button type="submit" id="modal-submit-btn" class="btn btn-primary">Save Iteration</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
