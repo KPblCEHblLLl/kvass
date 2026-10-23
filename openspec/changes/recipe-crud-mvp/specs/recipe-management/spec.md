@@ -5,40 +5,36 @@ Provides cloud-backed persistent storage (Google Drive JSON), schema validation,
 
 ## Requirements
 
-### REQ-001: Recipe Data Model & Validation
-- **Description**: The system must enforce a structured schema for all recipe records.
+### REQ-001: Khlebets Data Model & Schema
+- **Description**: The system must enforce a structured schema for all `Khlebets` recipe iteration records.
 - **Fields**:
-  - `id`: Unique identifier (UUID string).
-  - `title`: Required non-empty string (1–150 characters).
-  - `description`: Optional text summary.
-  - `servings`: Positive integer (> 0).
-  - `prepTimeMinutes`: Non-negative integer ($\ge 0$).
-  - `cookTimeMinutes`: Non-negative integer ($\ge 0$).
-  - `ingredients`: Array of ingredient objects:
-    - `name`: Required string.
-    - `quantity`: Required number or string (e.g. `2`, `1.5`, `"1/2"`).
-    - `unit`: Optional string (e.g. `"cups"`, `"tbsp"`, `"g"`).
-    - `notes`: Optional string (e.g. `"finely chopped"`).
-  - `instructions`: Array of ordered step strings (minimum 1 step).
-  - `tags`: Array of string category tags (e.g. `["breakfast", "quick", "vegetarian"]`).
-  - `createdAt`: ISO 8601 string timestamp.
-  - `updatedAt`: ISO 8601 string timestamp.
+  - `iteration`: number (iteration counter).
+  - `oven`: Enum with value `"Mine"`.
+  - `perBake`: number.
+  - `flower`: number (flour weight).
+  - `flowerType`: Enum with value `"Rye2000"`.
+  - `water`: number.
+  - `sugar`: optional number.
+  - `isSnack`: boolean.
+  - `sesame`: optional number.
+  - `sunflower`: optional number.
+  - `flax`: optional number.
+  - `baking`: array of baking step objects:
+    - `temperature`: number.
+    - `duration`: number.
+    - `fan`: boolean.
 
 ### REQ-002: Storage Schema & Remote Persistence
-- **Description**: Persist all recipes in a structured JSON document (`recipes.json`) stored in a dedicated Google Drive folder referenced by `GOOGLE_DRIVE_FOLDER_ID`.
+- **Description**: Persist all `Khlebets` items in a JSON array file (`khlebets.json`) stored in the dedicated Google Drive folder referenced by `GOOGLE_DRIVE_FOLDER_ID`.
 - **Document Structure**:
   ```json
-  {
-    "version": 1,
-    "lastModified": "2026-10-21T18:00:00.000Z",
-    "recipes": []
-  }
+  []
   ```
 - **Acceptance Criteria**:
   - The repository authenticates via OAuth2 Refresh Token without requiring interactive browser logins during normal operations.
   - File queries and writes are strictly scoped to the parent folder specified in `GOOGLE_DRIVE_FOLDER_ID` (`'${folderId}' in parents and trashed = false`).
-  - If `recipes.json` does not exist in the dedicated folder, the system creates `recipes.json` under that folder with an empty payload.
-  - Remote reads and writes serialize and deserialize data adhering to the Zod domain schema.
+  - If `khlebets.json` does not exist in the dedicated folder, the system creates `khlebets.json` under that folder with an empty array `[]`.
+  - Remote reads and writes serialize and deserialize data adhering to the `Khlebets` interface schema.
 
 ### REQ-003: Recipe Creation (Create)
 - **Description**: Add a new recipe to persistent Google Drive JSON storage.

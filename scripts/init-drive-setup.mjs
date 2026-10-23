@@ -26,7 +26,7 @@ const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-const TARGET_SHEETS = ['khlebets', 'sooslo'];
+const TARGET_FILES = ['khlebets.json', 'sooslo.json'];
 
 async function main() {
   console.log('--- GOOGLE DRIVE INITIAL FOLDER SETUP & VALIDATION ---');
@@ -125,38 +125,59 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\n4. Validating / creating required sheets (${TARGET_SHEETS.join(', ')})...`);
-  for (const sheetName of TARGET_SHEETS) {
+  console.log(`\n4. Validating / creating required JSON files (${TARGET_FILES.join(', ')})...`);
+  for (const fileName of TARGET_FILES) {
+    const baseName = fileName.replace(/\.json$/i, '');
     const existing = existingFiles.find(
-      (f) => f.name === sheetName && f.mimeType === 'application/vnd.google-apps.spreadsheet'
-    ) || existingFiles.find((f) => f.name === sheetName);
+      (f) =>
+        (f.name === fileName || f.name === baseName) &&
+        (f.mimeType === 'application/json' || f.mimeType === 'text/plain')
+    ) || existingFiles.find((f) => f.name === fileName || f.name === baseName);
 
     if (existing) {
-      console.log(`   [EXISTS] Sheet "${sheetName}" already exists (ID: ${existing.id})`);
+      console.log(`   [EXISTS] File "${existing.name}" already exists (ID: ${existing.id}, MIME: ${existing.mimeType})`);
     } else {
-      console.log(`   [CREATING] Sheet "${sheetName}" not found. Creating Google Sheet...`);
+      console.log(`   [CREATING] File "${fileName}" not found. Creating JSON file...`);
       try {
-        const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: sheetName,
-            mimeType: 'application/vnd.google-apps.spreadsheet',
-            parents: [folderId],
-          }),
-        });
+        const metadata = {
+          name: fileName,
+          mimeType: 'application/json',
+          parents: [folderId],
+        };
+        const initialContent = JSON.stringify([], null, 2);
+        const boundary = '-------314159265358979323846';
+        const delimiter = `\r\n--${boundary}\r\n`;
+        const closeDelimiter = `\r\n--${boundary}--`;
+
+        const multipartRequestBody =
+          delimiter +
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+          JSON.stringify(metadata) +
+          delimiter +
+          'Content-Type: application/json\r\n\r\n' +
+          initialContent +
+          closeDelimiter;
+
+        const createRes = await fetch(
+          'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': `multipart/related; boundary=${boundary}`,
+            },
+            body: multipartRequestBody,
+          }
+        );
 
         const createdData = await createRes.json();
         if (!createRes.ok || createdData.error) {
-          console.error(`   [ERROR] Failed to create sheet "${sheetName}":`, createdData);
+          console.error(`   [ERROR] Failed to create file "${fileName}":`, createdData);
         } else {
-          console.log(`   [CREATED] Sheet "${sheetName}" created successfully! (ID: ${createdData.id})`);
+          console.log(`   [CREATED] File "${fileName}" created successfully! (ID: ${createdData.id})`);
         }
       } catch (err) {
-        console.error(`   [ERROR] Network error creating sheet "${sheetName}":`, err);
+        console.error(`   [ERROR] Network error creating file "${fileName}":`, err);
       }
     }
   }

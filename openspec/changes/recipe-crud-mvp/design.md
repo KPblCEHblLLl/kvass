@@ -51,14 +51,26 @@ A lightweight helper script starts a temporary local HTTP server (`http://localh
 
 ## 2. Storage & Repository Design
 
-### JSON Document Schema (`recipes.json`)
+### JSON Document Schema (`khlebets.json`)
 ```typescript
-export interface RecipeDatabasePayload {
-  version: number;
-  lastModified: string;
-  recipes: Recipe[];
+export interface Khlebets {
+  iteration: number;
+  oven: Oven; // 'Mine'
+  perBake: number;
+  flower: number;
+  flowerType: FlowerType; // 'Rye2000'
+  water: number;
+  sugar?: number;
+  isSnack: boolean;
+  sesame?: number;
+  sunflower?: number;
+  flax?: number;
+  baking: BakingStep[];
 }
+
+export type KhlebetsData = Khlebets[];
 ```
+Initial content of `khlebets.json`: `[]`.
 
 ### Google Drive Storage Driver (`src/db/googleDriveClient.ts` & `src/db/recipeRepository.ts`)
 - **Folder Scoping & File Resolution**:
