@@ -1,38 +1,39 @@
 [
   {
+    "iteration": 0,
+    "oven": "Mine",
+    "perBake": 1,
+    "flower": 200,
+    "flowerType": "Rye2000",
+    "water": 400,
+    "sugar": 25,
+    "isSnack": false,
+    "baking": [
+      {
+        "temperature": 175,
+        "duration": 60,
+        "fan": true
+      },
+      {
+        "temperature": 150,
+        "duration": 40,
+        "fan": true
+      }
+    ]
+  },
+  {
     "iteration": 1,
     "oven": "Mine",
     "perBake": 2,
     "flower": 300,
     "flowerType": "Rye2000",
-    "water": 250,
-    "sugar": 0,
+    "water": 300,
     "isSnack": false,
     "baking": [
       {
         "temperature": 200,
         "duration": 25,
         "fan": false
-      }
-    ]
-  },
-  {
-    "iteration": 2,
-    "oven": "Mine",
-    "perBake": 2,
-    "flower": 300,
-    "flowerType": "Rye2000",
-    "water": 260,
-    "sugar": 10,
-    "isSnack": true,
-    "sesame": 15,
-    "sunflower": 20,
-    "flax": 10,
-    "baking": [
-      {
-        "temperature": 210,
-        "duration": 20,
-        "fan": true
       }
     ]
   }

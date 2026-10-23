@@ -34,14 +34,28 @@ const server = http.createServer(async (req, res) => {
   }
 
   // API endpoints
-  if (pathname === '/api/khlebets') {
+  const khlebetsMatch = pathname.match(/^\/api\/khlebets(?:\/(\d+))?\/?$/);
+  if (khlebetsMatch) {
+    const routeIteration = khlebetsMatch[1] !== undefined ? parseInt(khlebetsMatch[1], 10) : null;
+
     if (req.method === 'GET') {
       try {
         const items = await fetchKhlebetsList();
+        if (routeIteration !== null) {
+          const item = items.find((it) => Number(it.iteration) === routeIteration);
+          if (!item) {
+            res.writeHead(404, { 'Content-Type': 'application/json; charset=UTF-8' });
+            res.end(JSON.stringify({ error: `Iteration ${routeIteration} not found` }));
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=UTF-8' });
+          res.end(JSON.stringify(item));
+          return;
+        }
         res.writeHead(200, { 'Content-Type': 'application/json; charset=UTF-8' });
         res.end(JSON.stringify(items));
       } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=UTF-8' });
         res.end(JSON.stringify({ error: err.message }));
       }
       return;
@@ -54,19 +68,129 @@ const server = http.createServer(async (req, res) => {
       });
       req.on('end', async () => {
         try {
-          const newItem = JSON.parse(body);
+          const newItem = JSON.parse(body || '{}');
           const currentList = await fetchKhlebetsList();
+          
+          // Auto assign unique iteration identifier starting from 0
+          const maxIteration = currentList.reduce((max, item) => {
+            const it = typeof item.iteration === 'number' ? item.iteration : (parseInt(item.iteration, 10) || 0);
+            return it > max ? it : max;
+          }, -1);
+          newItem.iteration = maxIteration + 1;
+
           currentList.push(newItem);
           await saveKhlebetsList(currentList);
           res.writeHead(201, { 'Content-Type': 'application/json; charset=UTF-8' });
           res.end(JSON.stringify(newItem));
         } catch (err) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=UTF-8' });
           res.end(JSON.stringify({ error: err.message }));
         }
       });
       return;
     }
+
+    if (req.method === 'PUT') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', async () => {
+        try {
+          const updatedItem = JSON.parse(body || '{}');
+          const targetIteration = routeIteration !== null ? routeIteration : (typeof updatedItem.iteration === 'number' ? updatedItem.iteration : (parseInt(updatedItem.iteration, 10)));
+          if (targetIteration === null || isNaN(targetIteration)) {
+            res.writeHead(400, { 'Content-Type': 'application/json; charset=UTF-8' });
+            res.end(JSON.stringify({ error: 'Valid iteration identifier is required for update' }));
+            return;
+          }
+
+          const currentList = await fetchKhlebetsList();
+          const itemIndex = currentList.findIndex((it) => Number(it.iteration) === Number(targetIteration));
+          if (itemIndex === -1) {
+            res.writeHead(404, { 'Content-Type': 'application/json; charset=UTF-8' });
+            res.end(JSON.stringify({ error: `Iteration ${targetIteration} not found` }));
+            return;
+          }
+
+          // Enforce iteration immutability
+          updatedItem.iteration = targetIteration;
+          currentList[itemIndex] = updatedItem;
+
+          await saveKhlebetsList(currentList);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=UTF-8' });
+          res.end(JSON.stringify(updatedItem));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=UTF-8' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', async () => {
+        try {
+          let targetIteration = routeIteration;
+          if (targetIteration === null && parsedUrl.searchParams.get('iteration')) {
+            targetIteration = parseInt(parsedUrl.searchParams.get('iteration'), 10);
+          }
+          if (targetIteration === null && body) {
+            try {
+              const parsed = JSON.parse(body);
+              if (parsed && typeof parsed.iteration === 'number') targetIteration = parsed.iteration;
+            } catch {
+              // Ignore invalid body
+            }
+          }
+
+          if (targetIteration === null || isNaN(targetIteration)) {
+            res.writeHead(400, { 'Content-Type': 'application/json; charset=UTF-8' });
+            res.end(JSON.stringify({ error: 'Valid iteration identifier is required for deletion' }));
+            return;
+          }
+
+          const currentList = await fetchKhlebetsList();
+          const itemIndex = currentList.findIndex((it) => Number(it.iteration) === Number(targetIteration));
+          if (itemIndex === -1) {
+            res.writeHead(404, { 'Content-Type': 'application/json; charset=UTF-8' });
+            res.end(JSON.stringify({ error: `Iteration ${targetIteration} not found` }));
+            return;
+          }
+
+          const [deletedItem] = currentList.splice(itemIndex, 1);
+          await saveKhlebetsList(currentList);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=UTF-8' });
+          res.end(JSON.stringify({ success: true, deleted: deletedItem }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json; charset=UTF-8' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    res.writeHead(405, { 'Content-Type': 'application/json; charset=UTF-8' });
+    res.end(JSON.stringify({ error: `Method ${req.method} not allowed on ${pathname}` }));
+    return;
+  }
+
+  // Strict JSON 404 for any other unhandled /api path
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=UTF-8' });
+    res.end(JSON.stringify({ error: `Endpoint not found: ${req.method} ${pathname}` }));
+    return;
+  }
+
+  // Reject non-GET/HEAD methods for static file serving
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { 'Content-Type': 'application/json; charset=UTF-8' });
+    res.end(JSON.stringify({ error: `Method ${req.method} not allowed` }));
+    return;
   }
 
   // Static file serving

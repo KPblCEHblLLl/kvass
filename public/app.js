@@ -1,6 +1,8 @@
 // State
 let khlebetsList = [];
 let selectedIndex = null;
+let formBakingSteps = [];
+let editingIteration = null;
 
 // DOM Elements
 const elements = {
@@ -17,14 +19,18 @@ const elements = {
   // Detail
   detailPlaceholder: document.getElementById('detail-placeholder'),
   detailContent: document.getElementById('detail-content'),
+  detailTitle: document.getElementById('detail-title'),
   detailLabel: document.getElementById('detail-label'),
-  detailIterationBadge: document.getElementById('detail-iteration-badge'),
+  editDetailBtn: document.getElementById('edit-detail-btn'),
+  deleteDetailBtn: document.getElementById('delete-detail-btn'),
   closeDetailBtn: document.getElementById('close-detail-btn'),
-  detailFlower: document.getElementById('detail-flower'),
   detailFlowerType: document.getElementById('detail-flower-type'),
+  detailOven: document.getElementById('detail-oven'),
+  detailPerBake: document.getElementById('detail-per-bake'),
+  detailFlower: document.getElementById('detail-flower'),
   detailWater: document.getElementById('detail-water'),
   detailSugar: document.getElementById('detail-sugar'),
-  detailOvenBake: document.getElementById('detail-oven-bake'),
+  seedsCard: document.getElementById('seeds-card'),
   detailSnackStatus: document.getElementById('detail-snack-status'),
   seedSesame: document.getElementById('seed-sesame'),
   seedSunflower: document.getElementById('seed-sunflower'),
@@ -36,12 +42,24 @@ const elements = {
   newItemBtn: document.getElementById('new-item-btn'),
   emptyCreateBtn: document.getElementById('empty-create-btn'),
   modalBackdrop: document.getElementById('modal-backdrop'),
+  modalTitle: document.getElementById('modal-title'),
   modalCloseBtn: document.getElementById('modal-close-btn'),
   modalCancelBtn: document.getElementById('modal-cancel-btn'),
+  modalSubmitBtn: document.getElementById('modal-submit-btn'),
   newKhlebetsForm: document.getElementById('new-khlebets-form'),
+  formFlowerType: document.getElementById('form-flower-type'),
+  formOven: document.getElementById('form-oven'),
+  formPerBake: document.getElementById('form-per-bake'),
+  formFlower: document.getElementById('form-flower'),
+  formWater: document.getElementById('form-water'),
+  formSugar: document.getElementById('form-sugar'),
   formIsSnack: document.getElementById('form-is-snack'),
   formSeedsRow: document.getElementById('form-seeds-row'),
-  formIteration: document.getElementById('form-iteration'),
+  formSesame: document.getElementById('form-sesame'),
+  formSunflower: document.getElementById('form-sunflower'),
+  formFlax: document.getElementById('form-flax'),
+  addStepBtn: document.getElementById('add-step-btn'),
+  bakingStepsContainer: document.getElementById('baking-steps-container'),
 };
 
 /**
@@ -59,30 +77,49 @@ function formatKhlebetsLabel(khlebets) {
   return `# ${iteration}: ${flowerType} — ${flower}:${water}:${sugar}${seeds}`;
 }
 
+function getNextIteration() {
+  if (!khlebetsList || khlebetsList.length === 0) return 0;
+  const max = khlebetsList.reduce((acc, it) => {
+    const val = typeof it.iteration === 'number' ? it.iteration : -1;
+    return val > acc ? val : acc;
+  }, -1);
+  return max + 1;
+}
+
 // Fetch list from backend API
-async function loadKhlebets() {
-  showLoading();
+async function loadKhlebets(options = {}) {
+  const { showSpinner = true, selectIteration = null } = options;
+  if (showSpinner) {
+    showLoading();
+  }
   try {
-    const res = await fetch('/api/khlebets');
+    const res = await fetch('/api/khlebets', {
+      headers: { 'Accept': 'application/json' },
+    });
     if (!res.ok) {
-      throw new Error(`Server returned HTTP ${res.status}`);
+      let errorMsg = `Server returned HTTP ${res.status}`;
+      try {
+        const errData = await res.json();
+        if (errData.error) errorMsg = errData.error;
+      } catch {}
+      throw new Error(errorMsg);
     }
     const data = await res.json();
     khlebetsList = Array.isArray(data) ? data : [];
     
     // Sort by iteration ascending
-    khlebetsList.sort((a, b) => (a.iteration || 0) - (b.iteration || 0));
+    khlebetsList.sort((a, b) => (Number(a.iteration) || 0) - (Number(b.iteration) || 0));
     
     renderList();
-    
-    // Auto-select first item if available and none selected
-    if (khlebetsList.length > 0) {
-      if (selectedIndex === null || selectedIndex >= khlebetsList.length) {
-        selectItem(0);
+
+    if (selectIteration !== null && selectIteration !== undefined) {
+      const idx = khlebetsList.findIndex(it => Number(it.iteration) === Number(selectIteration));
+      if (idx !== -1) {
+        selectItem(idx);
       } else {
-        selectItem(selectedIndex);
+        deselectItem();
       }
-    } else {
+    } else if (showSpinner) {
       deselectItem();
     }
   } catch (err) {
@@ -92,9 +129,10 @@ async function loadKhlebets() {
 
 function renderList() {
   const query = elements.searchInput.value.trim().toLowerCase();
-  const filtered = khlebetsList.filter((item, index) => {
+  const filtered = khlebetsList.filter((item) => {
     const label = formatKhlebetsLabel(item).toLowerCase();
-    return label.includes(query) || String(item.iteration).includes(query);
+    const itemTitle = `khlebets ${item.iteration}`.toLowerCase();
+    return label.includes(query) || itemTitle.includes(query) || String(item.iteration).includes(query);
   });
 
   elements.itemCount.textContent = khlebetsList.length;
@@ -120,15 +158,7 @@ function renderList() {
     labelSpan.className = 'khlebets-item-label';
     labelSpan.textContent = formatKhlebetsLabel(item);
 
-    const subDiv = document.createElement('div');
-    subDiv.className = 'khlebets-item-sub';
-    subDiv.innerHTML = `
-      <span>Oven: ${item.oven || 'Mine'} (${item.perBake || 1}/bake)</span>
-      ${item.isSnack ? '<span class="snack-tag">★ Snack</span>' : ''}
-    `;
-
     btn.appendChild(labelSpan);
-    btn.appendChild(subDiv);
 
     btn.addEventListener('click', () => {
       selectItem(originalIndex);
@@ -150,7 +180,8 @@ function selectItem(index) {
     const filteredItemIndex = khlebetsList.indexOf(
       khlebetsList.filter(it => {
         const q = elements.searchInput.value.trim().toLowerCase();
-        return formatKhlebetsLabel(it).toLowerCase().includes(q);
+        const label = formatKhlebetsLabel(it).toLowerCase();
+        return label.includes(q) || String(it.iteration).includes(q);
       })[i]
     );
     btn.classList.toggle('active', filteredItemIndex === selectedIndex);
@@ -160,31 +191,37 @@ function selectItem(index) {
   elements.detailPlaceholder.classList.add('hidden');
   elements.detailContent.classList.remove('hidden');
 
-  elements.detailIterationBadge.textContent = `Iteration #${item.iteration}`;
+  // Title: "Khlebets ${khlebets.iteration}"
+  elements.detailTitle.textContent = `Khlebets ${item.iteration}`;
   elements.detailLabel.textContent = formatKhlebetsLabel(item);
 
+  // First row: Flour Type, Oven, Quantity
+  elements.detailFlowerType.textContent = item.flowerType || 'Rye2000';
+  elements.detailOven.textContent = item.oven || 'Mine';
+  elements.detailPerBake.textContent = item.perBake !== undefined ? item.perBake : 1;
+
+  // Second row: Flour, Water, Sugar
   elements.detailFlower.textContent = `${item.flower} g`;
-  elements.detailFlowerType.textContent = item.flowerType;
-  elements.detailWater.textContent = `${item.water} g (${Math.round((item.water / item.flower) * 100)}%)`;
-  elements.detailSugar.textContent = item.sugar ? `${item.sugar} g` : '0 g';
-  elements.detailOvenBake.textContent = `${item.oven || 'Mine'} • ${item.perBake || 1} pcs`;
+  elements.detailWater.textContent = `${item.water} g`;
+  elements.detailSugar.textContent = (item.sugar !== undefined && item.sugar !== null && item.sugar !== '') ? `${item.sugar} g` : '0 g';
 
-  // Snack / Seeds
-  elements.detailSnackStatus.innerHTML = item.isSnack
-    ? '<span class="badge" style="background:#2d2618;color:#e09f3e;">✓ Snack Profile with Seeds</span>'
-    : '<span class="badge" style="background:#1e2330;color:#9da7be;">Plain (No Seeds)</span>';
-
-  elements.seedSesame.textContent = `${item.sesame || 0} g`;
-  elements.seedSunflower.textContent = `${item.sunflower || 0} g`;
-  elements.seedFlax.textContent = `${item.flax || 0} g`;
+  // Snack / Seeds: hidden under Is Snack
+  if (item.isSnack) {
+    elements.seedsCard.classList.remove('hidden');
+    elements.detailSnackStatus.innerHTML = '<span class="badge" style="background:#2d2618;color:#e09f3e;">✓ Snack Profile with Seeds</span>';
+    elements.seedSesame.textContent = `${item.sesame || 0} g`;
+    elements.seedSunflower.textContent = `${item.sunflower || 0} g`;
+    elements.seedFlax.textContent = `${item.flax || 0} g`;
+  } else {
+    elements.seedsCard.classList.add('hidden');
+  }
 
   // Baking Steps
   elements.bakingStepsBody.innerHTML = '';
   if (Array.isArray(item.baking) && item.baking.length > 0) {
-    item.baking.forEach((step, stepIndex) => {
+    item.baking.forEach((step) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>Step ${stepIndex + 1}</td>
         <td>${step.temperature}°C</td>
         <td>${step.duration} min</td>
         <td>${step.fan ? '✓ Fan ON' : '✗ No Fan'}</td>
@@ -192,7 +229,7 @@ function selectItem(index) {
       elements.bakingStepsBody.appendChild(tr);
     });
   } else {
-    elements.bakingStepsBody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted)">No baking steps recorded</td></tr>';
+    elements.bakingStepsBody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted)">No baking steps recorded</td></tr>';
   }
 
   // Raw JSON
@@ -211,6 +248,8 @@ function showLoading() {
   elements.emptyState.classList.add('hidden');
   elements.errorState.classList.add('hidden');
   elements.khlebetsList.classList.add('hidden');
+  elements.itemCount.textContent = '?';
+  deselectItem();
 }
 
 function showEmpty() {
@@ -227,6 +266,8 @@ function showError(msg) {
   elements.errorState.classList.remove('hidden');
   elements.errorMessage.textContent = msg;
   elements.khlebetsList.classList.add('hidden');
+  elements.itemCount.textContent = '?';
+  deselectItem();
 }
 
 function showList() {
@@ -236,96 +277,317 @@ function showList() {
   elements.khlebetsList.classList.remove('hidden');
 }
 
+// Dynamic Baking Steps in Modal Form
+function renderBakingStepsForm() {
+  elements.bakingStepsContainer.innerHTML = '';
+  formBakingSteps.forEach((step, index) => {
+    const row = document.createElement('div');
+    row.className = 'baking-step-row';
+    row.dataset.stepIndex = index;
+
+    const tempInput = document.createElement('input');
+    tempInput.type = 'number';
+    tempInput.min = '50';
+    tempInput.max = '300';
+    tempInput.required = true;
+    tempInput.value = step.temperature ?? 200;
+    tempInput.className = 'step-temp-input';
+    tempInput.placeholder = 'Temp';
+    tempInput.addEventListener('input', (e) => {
+      formBakingSteps[index].temperature = parseInt(e.target.value, 10) || 0;
+    });
+
+    const durInput = document.createElement('input');
+    durInput.type = 'number';
+    durInput.min = '1';
+    durInput.max = '180';
+    durInput.required = true;
+    durInput.value = step.duration ?? 25;
+    durInput.className = 'step-dur-input';
+    durInput.placeholder = 'Dur';
+    durInput.addEventListener('input', (e) => {
+      formBakingSteps[index].duration = parseInt(e.target.value, 10) || 0;
+    });
+
+    const fanContainer = document.createElement('div');
+    fanContainer.className = 'step-fan-container';
+    const fanCheckbox = document.createElement('input');
+    fanCheckbox.type = 'checkbox';
+    fanCheckbox.checked = Boolean(step.fan);
+    fanCheckbox.className = 'step-fan-input';
+    fanCheckbox.addEventListener('change', (e) => {
+      formBakingSteps[index].fan = e.target.checked;
+    });
+    fanContainer.appendChild(fanCheckbox);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-step-btn';
+    removeBtn.title = 'Remove step';
+    removeBtn.innerHTML = '✕';
+    removeBtn.disabled = formBakingSteps.length <= 1; // At least one step required
+    removeBtn.addEventListener('click', () => {
+      if (formBakingSteps.length > 1) {
+        formBakingSteps.splice(index, 1);
+        renderBakingStepsForm();
+      }
+    });
+
+    row.appendChild(tempInput);
+    row.appendChild(durInput);
+    row.appendChild(fanContainer);
+    row.appendChild(removeBtn);
+
+    elements.bakingStepsContainer.appendChild(row);
+  });
+}
+
+function addBakingStep() {
+  const lastStep = formBakingSteps[formBakingSteps.length - 1];
+  formBakingSteps.push({
+    temperature: lastStep ? lastStep.temperature : 200,
+    duration: lastStep ? lastStep.duration : 25,
+    fan: false,
+  });
+  renderBakingStepsForm();
+}
+
 // Modal Handlers
-function openModal() {
-  const nextIteration = khlebetsList.length > 0 
-    ? Math.max(...khlebetsList.map(i => i.iteration || 0)) + 1 
-    : 1;
-  elements.formIteration.value = nextIteration;
+function openCreateModal() {
+  editingIteration = null;
+  const nextIteration = getNextIteration();
+  elements.modalTitle.textContent = `Khlebets ${nextIteration}`;
+  elements.modalSubmitBtn.textContent = 'Save Iteration';
+  
+  // Reset form defaults
+  elements.formFlowerType.value = 'Rye2000';
+  elements.formOven.value = 'Mine';
+  elements.formPerBake.value = '2';
+  elements.formFlower.value = '300';
+  elements.formWater.value = '250';
+  elements.formSugar.value = '';
+  
+  elements.formIsSnack.checked = false;
+  elements.formSeedsRow.classList.add('hidden');
+  elements.formSesame.value = '0';
+  elements.formSunflower.value = '0';
+  elements.formFlax.value = '0';
+
+  // Default at least 1 baking step
+  formBakingSteps = [{ temperature: 200, duration: 25, fan: false }];
+  renderBakingStepsForm();
+
+  elements.modalBackdrop.classList.remove('hidden');
+}
+
+function openEditModal(item) {
+  if (!item) return;
+  editingIteration = item.iteration;
+  elements.modalTitle.textContent = `Khlebets ${item.iteration}`;
+  elements.modalSubmitBtn.textContent = 'Update Iteration';
+
+  // Populate form with existing values
+  elements.formFlowerType.value = item.flowerType || 'Rye2000';
+  elements.formOven.value = item.oven || 'Mine';
+  elements.formPerBake.value = String(item.perBake || 1);
+  elements.formFlower.value = String(item.flower || 0);
+  elements.formWater.value = String(item.water || 0);
+  elements.formSugar.value = (item.sugar !== undefined && item.sugar !== null) ? String(item.sugar) : '';
+
+  elements.formIsSnack.checked = Boolean(item.isSnack);
+  if (elements.formIsSnack.checked) {
+    elements.formSeedsRow.classList.remove('hidden');
+  } else {
+    elements.formSeedsRow.classList.add('hidden');
+  }
+  elements.formSesame.value = String(item.sesame || 0);
+  elements.formSunflower.value = String(item.sunflower || 0);
+  elements.formFlax.value = String(item.flax || 0);
+
+  // Populate baking steps
+  if (Array.isArray(item.baking) && item.baking.length > 0) {
+    formBakingSteps = JSON.parse(JSON.stringify(item.baking));
+  } else {
+    formBakingSteps = [{ temperature: 200, duration: 25, fan: false }];
+  }
+  renderBakingStepsForm();
+
   elements.modalBackdrop.classList.remove('hidden');
 }
 
 function closeModal() {
   elements.modalBackdrop.classList.add('hidden');
   elements.newKhlebetsForm.reset();
+  editingIteration = null;
 }
 
 // Event Listeners
-elements.refreshBtn.addEventListener('click', loadKhlebets);
-elements.retryBtn.addEventListener('click', loadKhlebets);
+elements.refreshBtn.addEventListener('click', async () => {
+  const originalContent = elements.refreshBtn.innerHTML;
+  elements.refreshBtn.disabled = true;
+  elements.refreshBtn.innerHTML = '<span class="btn-spinner"></span> Refreshing...';
+  try {
+    await loadKhlebets({ showSpinner: true });
+  } finally {
+    elements.refreshBtn.innerHTML = originalContent;
+    elements.refreshBtn.disabled = false;
+  }
+});
+elements.retryBtn.addEventListener('click', () => loadKhlebets({ showSpinner: true }));
 elements.searchInput.addEventListener('input', renderList);
 elements.closeDetailBtn.addEventListener('click', deselectItem);
+elements.editDetailBtn.addEventListener('click', () => {
+  if (selectedIndex !== null && khlebetsList[selectedIndex]) {
+    openEditModal(khlebetsList[selectedIndex]);
+  }
+});
+elements.deleteDetailBtn.addEventListener('click', async () => {
+  if (selectedIndex === null || !khlebetsList[selectedIndex]) return;
+  const item = khlebetsList[selectedIndex];
+  const confirmDelete = window.confirm(`Delete Khlebets ${item.iteration}?`);
+  if (!confirmDelete) return;
 
-elements.newItemBtn.addEventListener('click', openModal);
-elements.emptyCreateBtn.addEventListener('click', openModal);
+  const originalContent = elements.deleteDetailBtn.innerHTML;
+  elements.deleteDetailBtn.disabled = true;
+  elements.editDetailBtn.disabled = true;
+  elements.deleteDetailBtn.innerHTML = '<span class="btn-spinner"></span> Deleting...';
+
+  try {
+    const res = await fetch(`/api/khlebets/${item.iteration}`, {
+      method: 'DELETE',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) {
+      let errorMsg = `Failed to delete: HTTP ${res.status}`;
+      try {
+        const errData = await res.json();
+        if (errData.error) errorMsg = errData.error;
+      } catch {}
+      throw new Error(errorMsg);
+    }
+    deselectItem();
+    await loadKhlebets({ showSpinner: false });
+  } catch (err) {
+    alert(`Error deleting item: ${err.message}`);
+  } finally {
+    elements.deleteDetailBtn.innerHTML = originalContent;
+    elements.deleteDetailBtn.disabled = false;
+    elements.editDetailBtn.disabled = false;
+  }
+});
+
+elements.newItemBtn.addEventListener('click', openCreateModal);
+elements.emptyCreateBtn.addEventListener('click', openCreateModal);
 elements.modalCloseBtn.addEventListener('click', closeModal);
 elements.modalCancelBtn.addEventListener('click', closeModal);
 
-elements.modalBackdrop.addEventListener('click', (e) => {
-  if (e.target === elements.modalBackdrop) closeModal();
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !elements.modalBackdrop.classList.contains('hidden')) {
+    closeModal();
+  }
 });
+
+// Is Snack toggle
+elements.formIsSnack.addEventListener('change', () => {
+  if (elements.formIsSnack.checked) {
+    elements.formSeedsRow.classList.remove('hidden');
+  } else {
+    elements.formSeedsRow.classList.add('hidden');
+  }
+});
+
+// Add step button
+elements.addStepBtn.addEventListener('click', addBakingStep);
 
 // Form Submit
 elements.newKhlebetsForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   
-  const iteration = parseInt(document.getElementById('form-iteration').value, 10);
-  const oven = document.getElementById('form-oven').value;
-  const perBake = parseInt(document.getElementById('form-per-bake').value, 10);
-  const flower = parseInt(document.getElementById('form-flower').value, 10);
-  const flowerType = document.getElementById('form-flower-type').value;
-  const water = parseInt(document.getElementById('form-water').value, 10);
-  const sugarVal = document.getElementById('form-sugar').value.trim();
-  const sugar = sugarVal ? parseInt(sugarVal, 10) : undefined;
+  const isEdit = editingIteration !== null;
+  const iteration = isEdit ? editingIteration : getNextIteration();
+  const flowerType = elements.formFlowerType.value;
+  const oven = elements.formOven.value;
+  const perBake = parseInt(elements.formPerBake.value, 10);
+  
+  const flower = parseInt(elements.formFlower.value, 10);
+  const water = parseInt(elements.formWater.value, 10);
+  const sugarVal = elements.formSugar.value.trim();
+  const sugar = sugarVal !== '' ? parseInt(sugarVal, 10) : undefined;
   
   const isSnack = elements.formIsSnack.checked;
-  const sesame = parseInt(document.getElementById('form-sesame').value || '0', 10);
-  const sunflower = parseInt(document.getElementById('form-sunflower').value || '0', 10);
-  const flax = parseInt(document.getElementById('form-flax').value || '0', 10);
+  const sesame = parseInt(elements.formSesame.value || '0', 10);
+  const sunflower = parseInt(elements.formSunflower.value || '0', 10);
+  const flax = parseInt(elements.formFlax.value || '0', 10);
 
-  const bakeTemp = parseInt(document.getElementById('form-bake-temp').value, 10);
-  const bakeDur = parseInt(document.getElementById('form-bake-dur').value, 10);
-  const bakeFan = document.getElementById('form-bake-fan').checked;
+  // Validate at least one baking step
+  if (!formBakingSteps || formBakingSteps.length === 0) {
+    alert('At least one baking step is required.');
+    return;
+  }
 
-  const newItem = {
+  const baking = formBakingSteps.map((s) => ({
+    temperature: typeof s.temperature === 'number' && !isNaN(s.temperature) ? s.temperature : 200,
+    duration: typeof s.duration === 'number' && !isNaN(s.duration) ? s.duration : 25,
+    fan: Boolean(s.fan),
+  }));
+
+  const itemPayload = {
     iteration,
     oven,
     perBake,
     flower,
     flowerType,
     water,
-    ...(sugar !== undefined ? { sugar } : {}),
+    ...(sugar !== undefined && !isNaN(sugar) ? { sugar } : {}),
     isSnack,
     ...(isSnack ? { sesame, sunflower, flax } : {}),
-    baking: [
-      {
-        temperature: bakeTemp,
-        duration: bakeDur,
-        fan: bakeFan,
-      }
-    ]
+    baking,
   };
 
+  const originalSubmitContent = elements.modalSubmitBtn.innerHTML;
+  elements.modalSubmitBtn.disabled = true;
+  elements.modalCancelBtn.disabled = true;
+  elements.modalCloseBtn.disabled = true;
+  const loadingLabel = isEdit ? 'Updating...' : 'Saving...';
+  elements.modalSubmitBtn.innerHTML = `<span class="btn-spinner"></span> ${loadingLabel}`;
+
   try {
-    const res = await fetch('/api/khlebets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newItem),
+    const url = isEdit ? `/api/khlebets/${editingIteration}` : '/api/khlebets';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(itemPayload),
     });
 
     if (!res.ok) {
-      throw new Error(`Failed to save: ${res.statusText}`);
+      let errorMsg = `Failed to save: HTTP ${res.status}`;
+      try {
+        const errData = await res.json();
+        if (errData.error) errorMsg = errData.error;
+      } catch {}
+      throw new Error(errorMsg);
     }
 
+    const saved = await res.json().catch(() => null);
     closeModal();
-    await loadKhlebets();
-    // Select newly added item
-    const newIdx = khlebetsList.findIndex(it => it.iteration === iteration);
-    if (newIdx !== -1) selectItem(newIdx);
+    
+    // Select saved item by iteration without flashing full-page spinner
+    const targetIteration = (saved && typeof saved.iteration === 'number') ? saved.iteration : iteration;
+    await loadKhlebets({ showSpinner: false, selectIteration: targetIteration });
   } catch (err) {
     alert(`Error saving item: ${err.message}`);
+  } finally {
+    elements.modalSubmitBtn.innerHTML = originalSubmitContent;
+    elements.modalSubmitBtn.disabled = false;
+    elements.modalCancelBtn.disabled = false;
+    elements.modalCloseBtn.disabled = false;
   }
 });
 
 // Initial Load
-document.addEventListener('DOMContentLoaded', loadKhlebets);
+document.addEventListener('DOMContentLoaded', () => loadKhlebets({ showSpinner: true }));

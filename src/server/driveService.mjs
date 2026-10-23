@@ -104,7 +104,11 @@ export async function fetchKhlebetsList() {
 
     const file = searchData.files && searchData.files[0];
     if (!file) {
-      await saveKhlebetsList([]);
+      const local = getLocalKhlebets();
+      if (local.length > 0) {
+        await saveKhlebetsList(local);
+        return local;
+      }
       return [];
     }
 
@@ -120,7 +124,16 @@ export async function fetchKhlebetsList() {
 
     const text = await getRes.text();
     if (!text.trim()) return [];
-    return JSON.parse(text);
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        saveLocalKhlebets(parsed);
+        return parsed;
+      }
+      return getLocalKhlebets();
+    } catch {
+      return getLocalKhlebets();
+    }
   } catch (err) {
     console.warn('[DriveService] Error fetching from Drive:', err.message);
     return getLocalKhlebets();

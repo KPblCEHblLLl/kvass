@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node src/server/index.mjs",
-    "dev": "node src/server/index.mjs",
+    "dev": "node --watch src/server/index.mjs",
     "build": "tsc",
     "auth": "node scripts/get-refresh-token.mjs",
     "init:drive": "node scripts/init-drive-setup.mjs"
