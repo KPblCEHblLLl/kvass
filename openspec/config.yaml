@@ -1,0 +1,24 @@
+schema: spec-driven
+
+# Project context (optional)
+context: |
+  Communication style: Caveman mode. Be ultra-terse, fluff-free, and high-density.
+  Answer first. Kill ceremony and filler. Keep code, paths, and technical data exact.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+rules:
+  proposal:
+    - "Always ask the user for tech stack preferences (database, API framework, UI, testing) before drafting design.md"
+    - "Do not make architectural assumptions without user confirmation"
+    - "Keep specifications and descriptions concise and fluff-free"
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+operations:
+  apply:
+    guidance:
+      - "Follow caveman style: answer first, no conversational fluff, keep diffs and tasks minimal and focused"
+  archive:
+    guidance:
+      - "Summarize archive result tersely in caveman style"

@@ -1,0 +1,27 @@
+# Implementation Tasks: Recipe Management MVP (Google Drive JSON Persistence)
+
+- [ ] 1. Project Dependencies & Configuration <!-- id: 1-setup -->
+  - [ ] 1.1 Install dependencies: `googleapis`, `dotenv`, `zod`, `uuid`, and dev dependencies: `vitest`, `@types/node`, `@types/uuid` in `package.json`
+  - [ ] 1.2 Create `.env.example` and `.gitignore` to protect OAuth credentials and document `GOOGLE_DRIVE_FOLDER_ID`
+  - [ ] 1.3 Configure TypeScript build scripts and Vitest test runner config
+- [ ] 2. OAuth Authentication & Token Helper <!-- id: 2-auth -->
+  - [ ] 2.1 Implement environment configuration and validator for OAuth keys and `GOOGLE_DRIVE_FOLDER_ID` in `src/config.ts`
+  - [ ] 2.2 Create one-time token acquisition script in `scripts/get-refresh-token.ts` with local loopback server (`http://localhost:3000/oauth2callback`)
+  - [ ] 2.3 Implement Google Drive client factory in `src/db/googleDriveClient.ts` using `OAuth2Client` and refresh token
+- [ ] 3. Domain Models & Validation <!-- id: 3-domain-models -->
+  - [ ] 3.1 Define Recipe, Ingredient, and DatabasePayload TypeScript interfaces and Zod schemas in `src/types/recipe.ts`
+  - [ ] 3.2 Add unit tests for recipe validation in `tests/types/recipe.test.ts`
+- [ ] 4. Google Drive Storage & Repository Layer <!-- id: 4-repository-layer -->
+  - [ ] 4.1 Define `StorageDriver` interface and implement `GoogleDriveStorageDriver` in `src/db/googleDriveDriver.ts` with folder scoping (`GOOGLE_DRIVE_FOLDER_ID`)
+  - [ ] 4.2 Implement `InMemoryStorageDriver` in `src/db/inMemoryDriver.ts` for offline testing and fast execution
+  - [ ] 4.3 Implement `RecipeRepository` in `src/db/recipeRepository.ts` for CRUD operations on the JSON dataset
+  - [ ] 4.4 Add repository integration tests with memory driver in `tests/db/recipeRepository.test.ts`
+- [ ] 5. Service Layer & Business Logic <!-- id: 5-service-layer -->
+  - [ ] 5.1 Implement `RecipeService` in `src/services/recipeService.ts` with validation, search query filtering, and tag matching
+  - [ ] 5.2 Add unit and integration tests for `RecipeService` in `tests/services/recipeService.test.ts`
+- [ ] 6. Interface Layer <!-- id: 6-interface-layer -->
+  - [ ] 6.1 Implement CLI interface / entry point in `src/index.ts` (commands: list, get, add, update, delete)
+  - [ ] 6.2 Add interface verification tests in `tests/cli.test.ts`
+- [ ] 7. Verification & Build Validation <!-- id: 7-verification -->
+  - [ ] 7.1 Run full automated test suite with Vitest to ensure 100% pass rate
+  - [ ] 7.2 Verify clean TypeScript compilation (`npm run build`)

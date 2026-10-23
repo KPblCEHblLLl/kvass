@@ -1,0 +1,16 @@
+{
+  "name": "kvass",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "auth": "node scripts/get-refresh-token.mjs",
+    "init:drive": "node scripts/init-drive-setup.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "private": true
+}
